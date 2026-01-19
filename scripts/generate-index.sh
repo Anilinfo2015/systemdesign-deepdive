@@ -265,7 +265,10 @@ generate_recent_html() {
 # Generate recommended content
 generate_recommended_html() {
     echo "            <section id=\"recommended\" class=\"recommended-section\">"
-    echo "                <h2><span class=\"section-icon\">⭐</span> Recommended Content</h2>"
+    echo "                <div class=\"section-head\">"
+    echo "                    <h2><span class=\"section-icon\">⭐</span> Recommended Content</h2>"
+    echo "                    <p>Curated essential reads for system design mastery.</p>"
+    echo "                </div>"
     echo "                <div class=\"recommended-grid\">"
     
     # Prioritize certain topics as recommended
@@ -283,14 +286,18 @@ generate_recommended_html() {
                     category_title=$(to_title_case "$dir")
                 fi
                 if [ -z "$excerpt" ]; then
-                    excerpt="Curated deep dive for your next design session."
+                    excerpt="Essential patterns and tradeoffs for building scalable systems."
                 fi
                 
                 echo "                    <a href=\"$html_path\" class=\"recommended-card\">"
-                echo "                        <div class=\"recommended-badge\">Recommended</div>"
-                echo "                        <h4>$title</h4>"
-                echo "                        <p>$excerpt</p>"
-                echo "                        <span class=\"recommended-category\">$category_title • $read_time min read</span>"
+                echo "                        <div class=\"recommended-badge\">Essential</div>"
+                echo "                        <div class=\"recommended-content\">"
+                echo "                            <h4>$title</h4>"
+                echo "                            <p>$excerpt</p>"
+                echo "                        </div>"
+                echo "                        <div class=\"recommended-footer\">"
+                echo "                            <span class=\"recommended-category\">$category_title • $read_time min read</span>"
+                echo "                        </div>"
                 echo "                    </a>"
                 break
             fi
