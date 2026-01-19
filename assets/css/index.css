@@ -304,7 +304,7 @@ section {
 
 .recommended-card {
     background: linear-gradient(145deg, #4f46e5 0%, #7c3aed 50%, #be185d 100%);
-    color: #ffffff;
+    color: #ffffff !important;
     border-radius: 24px;
     padding: 32px 28px;
     position: relative;
@@ -315,11 +315,13 @@ section {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    text-decoration: none;
 }
 
 .recommended-card:hover {
     transform: translateY(-8px) scale(1.02);
     box-shadow: 0 30px 60px rgba(79, 70, 229, 0.35);
+    color: #ffffff !important;
 }
 
 .recommended-card::before {
@@ -345,11 +347,11 @@ section {
     font-weight: 700;
     margin-bottom: 12px;
     line-height: 1.3;
-    color: #ffffff;
+    color: #ffffff !important;
 }
 
 .recommended-card p {
-    color: rgba(255, 255, 255, 0.95);
+    color: rgba(255, 255, 255, 0.95) !important;
     font-size: 1rem;
     line-height: 1.6;
     margin-bottom: 20px;
@@ -361,7 +363,7 @@ section {
     right: 20px;
     background: rgba(255, 255, 255, 0.25);
     backdrop-filter: blur(10px);
-    color: #ffffff;
+    color: #ffffff !important;
     padding: 8px 14px;
     border-radius: 999px;
     font-size: 0.75rem;
@@ -381,7 +383,7 @@ section {
     display: block;
     font-family: 'Inter', system-ui, sans-serif;
     font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.8) !important;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 1px;

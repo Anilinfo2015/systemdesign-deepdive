@@ -1,3 +1,12 @@
+---
+layout: default
+title: "Event-Driven Architecture"
+description: "Comprehensive guide to event-driven architecture patterns, event sourcing, and asynchronous communication"
+category: "Architecture Patterns"
+tags: ["event-driven", "architecture", "asynchronous", "messaging"]
+date: 2026-01-19
+---
+
 # Event-Driven Architecture
 
 ## Overview

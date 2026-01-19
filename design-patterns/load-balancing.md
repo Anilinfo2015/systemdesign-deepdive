@@ -1,3 +1,12 @@
+---
+layout: default
+title: "Load Balancing Pattern"
+description: "Learn load balancing strategies, algorithms, and implementation patterns for scalable systems"
+category: "Design Patterns"
+tags: ["load-balancing", "scalability", "performance", "networking"]
+date: 2026-01-19
+---
+
 # Load Balancing Pattern
 
 ## Overview

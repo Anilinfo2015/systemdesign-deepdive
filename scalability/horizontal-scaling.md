@@ -1,3 +1,12 @@
+---
+layout: default
+title: "Horizontal Scaling"
+description: "Master horizontal scaling strategies, distributed systems, and scale-out architecture patterns"
+category: "Scalability"
+tags: ["horizontal-scaling", "scalability", "distributed-systems", "performance"]
+date: 2026-01-19
+---
+
 # Horizontal Scaling
 
 ## Overview

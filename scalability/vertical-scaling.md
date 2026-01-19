@@ -1,3 +1,12 @@
+---
+layout: default
+title: "Vertical Scaling"
+description: "Learn vertical scaling techniques, resource optimization, and scale-up strategies"
+category: "Scalability"
+tags: ["vertical-scaling", "scalability", "performance", "optimization"]
+date: 2026-01-19
+---
+
 # Vertical Scaling
 
 ## Overview

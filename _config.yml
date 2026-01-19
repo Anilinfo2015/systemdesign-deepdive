@@ -1,0 +1,57 @@
+# Jekyll configuration for System Design Deep Dive
+title: "System Design Deep Dive"
+description: "Comprehensive guide to architecture patterns, design patterns, and scalability best practices"
+author: "Anilinfo2015"
+url: "https://anilinfo2015.github.io/systemdesign-deepdive"
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    block:
+      line_numbers: true
+
+# Theme settings
+permalink: /:title/
+
+# Plugins
+plugins:
+  - jekyll-sitemap
+  - jekyll-feed
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "default"
+  - scope:
+      path: "architecture-patterns"
+      type: "pages"
+    values:
+      layout: "default"
+      category: "Architecture Patterns"
+  - scope:
+      path: "design-patterns"
+      type: "pages"
+    values:
+      layout: "default"
+      category: "Design Patterns"
+  - scope:
+      path: "scalability"
+      type: "pages"
+    values:
+      layout: "default"
+      category: "Scalability"
+
+# Exclude files
+exclude:
+  - scripts/
+  - node_modules/
+  - "*.sh"
+  - LICENSE
+  - README.md

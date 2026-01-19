@@ -1,3 +1,12 @@
+---
+layout: default
+title: "Microservices Architecture"
+description: "Learn about microservices architecture patterns, benefits, challenges, and implementation strategies"
+category: "Architecture Patterns"
+tags: ["microservices", "architecture", "distributed-systems", "scalability"]
+date: 2026-01-19
+---
+
 # Microservices Architecture
 
 ## Overview

@@ -1,3 +1,12 @@
+---
+layout: default
+title: "Caching Design Pattern"
+description: "Master caching strategies, cache invalidation, and performance optimization techniques"
+category: "Design Patterns"
+tags: ["caching", "performance", "optimization", "design-patterns"]
+date: 2026-01-19
+---
+
 # Caching Design Pattern
 
 ## Overview
