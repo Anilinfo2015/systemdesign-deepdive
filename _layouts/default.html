@@ -25,9 +25,35 @@
     </nav>
 
     <main class="content-wrapper">
+        <nav class="breadcrumb">
+            <a href="{{ '/' | relative_url }}">← Back to all articles</a>
+        </nav>
+
         <article class="markdown-content">
-            {{ content }}
+            <header class="article-header">
+                {% if page.title %}
+                <h1 class="article-title">{{ page.title }}</h1>
+                {% endif %}
+                <div class="article-meta">
+                    {% assign words = content | number_of_words %}
+                    {% assign read_time = words | divided_by: 200 | plus: 1 %}
+                    <span class="meta-item">📖 {{ read_time }} min read</span>
+                    <span class="meta-item">📝 {{ words }} words</span>
+                </div>
+            </header>
+
+            <div class="article-body">
+                {{ content }}
+            </div>
         </article>
+
+        <aside class="article-footer">
+            <div class="share-prompt">
+                <p>Found this useful? Share it with others!</p>
+                <a href="https://github.com/Anilinfo2015/systemdesign-deepdive" target="_blank" rel="noreferrer">⭐ Star on GitHub</a>
+            </div>
+            <a class="back-link" href="{{ '/' | relative_url }}">← Browse all articles</a>
+        </aside>
     </main>
 
     <footer class="site-footer">

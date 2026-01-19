@@ -94,13 +94,150 @@ body {
     box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.1);
 }
 
+/* ===== Breadcrumb ===== */
+.breadcrumb {
+    margin-bottom: 20px;
+}
+
+.breadcrumb a {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 0.9rem;
+    color: var(--brand);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.breadcrumb a:hover {
+    color: var(--brand-dark);
+}
+
+/* ===== Article Header ===== */
+.article-header {
+    margin-bottom: 2.5em;
+    padding-bottom: 2em;
+    border-bottom: 1px solid var(--border);
+}
+
+.article-title {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1.15;
+    color: var(--ink);
+    margin: 0 0 0.5em 0;
+    letter-spacing: -0.03em;
+}
+
+.article-title::after {
+    content: '';
+    display: block;
+    width: 80px;
+    height: 4px;
+    background: linear-gradient(90deg, var(--brand), var(--brand-dark));
+    border-radius: 2px;
+    margin-top: 20px;
+}
+
+.article-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.meta-item {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 0.9rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ===== Article Body ===== */
+.article-body {
+    font-size: inherit;
+}
+
+.article-body > *:first-child {
+    margin-top: 0;
+}
+
+.article-body > p:first-of-type {
+    font-size: 1.2em;
+    color: var(--ink);
+    line-height: 1.7;
+}
+
+/* ===== Article Footer ===== */
+.article-footer {
+    margin-top: 48px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+}
+
+.share-prompt {
+    background: linear-gradient(135deg, var(--brand-light), #f8fafc);
+    padding: 24px 28px;
+    border-radius: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.share-prompt p {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+}
+
+.share-prompt a {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+    color: var(--paper);
+    background: var(--brand);
+    padding: 10px 20px;
+    border-radius: 999px;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.share-prompt a:hover {
+    background: var(--brand-dark);
+    transform: translateY(-2px);
+}
+
+.back-link {
+    display: inline-block;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 0.95rem;
+    color: var(--brand);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.back-link:hover {
+    text-decoration: underline;
+}
+
 /* ===== Typography ===== */
 .markdown-content h1,
+.article-body h1,
 .markdown-content h2,
+.article-body h2,
 .markdown-content h3,
+.article-body h3,
 .markdown-content h4,
+.article-body h4,
 .markdown-content h5,
-.markdown-content h6 {
+.article-body h5,
+.markdown-content h6,
+.article-body h6 {
     font-family: 'Inter', system-ui, sans-serif;
     color: var(--ink);
     line-height: 1.25;
@@ -109,7 +246,8 @@ body {
     letter-spacing: -0.02em;
 }
 
-.markdown-content h1 {
+.markdown-content h1,
+.article-body h1 {
     font-size: 2.5rem;
     font-weight: 800;
     margin-top: 0;
@@ -117,7 +255,8 @@ body {
     line-height: 1.15;
 }
 
-.markdown-content h1::after {
+.markdown-content h1::after,
+.article-body h1::after {
     content: '';
     display: block;
     width: 60px;
@@ -127,36 +266,42 @@ body {
     margin-top: 16px;
 }
 
-.markdown-content h2 {
+.markdown-content h2,
+.article-body h2 {
     font-size: 1.75rem;
     font-weight: 700;
     padding-top: 0.5em;
     border-top: 1px solid var(--border);
 }
 
-.markdown-content h3 {
+.markdown-content h3,
+.article-body h3 {
     font-size: 1.35rem;
     font-weight: 600;
 }
 
-.markdown-content h4 {
+.markdown-content h4,
+.article-body h4 {
     font-size: 1.15rem;
     font-weight: 600;
     color: var(--ink-light);
 }
 
-.markdown-content p {
+.markdown-content p,
+.article-body p {
     margin-bottom: 1.4em;
     color: var(--ink-light);
 }
 
-.markdown-content > p:first-of-type {
+.markdown-content > p:first-of-type,
+.article-body > p:first-of-type {
     font-size: 1.15em;
     color: var(--ink);
 }
 
 /* ===== Links ===== */
-.markdown-content a {
+.markdown-content a,
+.article-body a {
     color: var(--brand);
     text-decoration: none;
     background-image: linear-gradient(var(--brand), var(--brand));
@@ -166,28 +311,34 @@ body {
     transition: background-size 0.25s ease-out;
 }
 
-.markdown-content a:hover {
+.markdown-content a:hover,
+.article-body a:hover {
     color: var(--brand-dark);
     background-size: 100% 2px;
 }
 
 /* ===== Lists ===== */
 .markdown-content ul,
-.markdown-content ol {
+.markdown-content ol,
+.article-body ul,
+.article-body ol {
     padding-left: 1.5em;
     margin-bottom: 1.4em;
 }
 
-.markdown-content ul {
+.markdown-content ul,
+.article-body ul {
     list-style: none;
 }
 
-.markdown-content ul li {
+.markdown-content ul li,
+.article-body ul li {
     position: relative;
     padding-left: 0.2em;
 }
 
-.markdown-content ul li::before {
+.markdown-content ul li::before,
+.article-body ul li::before {
     content: '';
     position: absolute;
     left: -1.3em;
@@ -198,21 +349,25 @@ body {
     border-radius: 50%;
 }
 
-.markdown-content ol li {
+.markdown-content ol li,
+.article-body ol li {
     padding-left: 0.3em;
 }
 
-.markdown-content li {
+.markdown-content li,
+.article-body li {
     margin-bottom: 0.6em;
     color: var(--ink-light);
 }
 
-.markdown-content li p {
+.markdown-content li p,
+.article-body li p {
     margin-bottom: 0.4em;
 }
 
 /* ===== Code ===== */
-.markdown-content code {
+.markdown-content code,
+.article-body code {
     background: var(--brand-light);
     padding: 3px 8px;
     border-radius: 6px;
@@ -222,7 +377,8 @@ body {
     font-weight: 500;
 }
 
-.markdown-content pre {
+.markdown-content pre,
+.article-body pre {
     background: var(--code-bg);
     padding: 24px 28px;
     border-radius: 16px;
@@ -232,7 +388,8 @@ body {
     box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
-.markdown-content pre code {
+.markdown-content pre code,
+.article-body pre code {
     background: transparent;
     color: var(--code-ink);
     padding: 0;
@@ -241,7 +398,8 @@ body {
 }
 
 /* ===== Blockquote ===== */
-.markdown-content blockquote {
+.markdown-content blockquote,
+.article-body blockquote {
     border-left: 4px solid var(--brand);
     padding: 1em 1.5em;
     margin: 1.8em 0;
@@ -251,12 +409,14 @@ body {
     font-style: italic;
 }
 
-.markdown-content blockquote p:last-child {
+.markdown-content blockquote p:last-child,
+.article-body blockquote p:last-child {
     margin-bottom: 0;
 }
 
 /* ===== Images ===== */
-.markdown-content img {
+.markdown-content img,
+.article-body img {
     max-width: 100%;
     height: auto;
     display: block;
@@ -266,7 +426,9 @@ body {
 }
 
 .markdown-content img + em,
-.markdown-content figure figcaption {
+.markdown-content figure figcaption,
+.article-body img + em,
+.article-body figure figcaption {
     display: block;
     text-align: center;
     font-size: 0.9em;
@@ -276,7 +438,8 @@ body {
 }
 
 /* ===== Tables ===== */
-.markdown-content table {
+.markdown-content table,
+.article-body table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
@@ -288,13 +451,16 @@ body {
 }
 
 .markdown-content th,
-.markdown-content td {
+.markdown-content td,
+.article-body th,
+.article-body td {
     padding: 14px 18px;
     text-align: left;
     border-bottom: 1px solid var(--border);
 }
 
-.markdown-content th {
+.markdown-content th,
+.article-body th {
     background: var(--brand);
     color: #fff;
     font-family: 'Inter', system-ui, sans-serif;
@@ -304,20 +470,24 @@ body {
     letter-spacing: 0.5px;
 }
 
-.markdown-content tr:last-child td {
+.markdown-content tr:last-child td,
+.article-body tr:last-child td {
     border-bottom: none;
 }
 
-.markdown-content tr:nth-child(even) {
+.markdown-content tr:nth-child(even),
+.article-body tr:nth-child(even) {
     background: #f8fafc;
 }
 
-.markdown-content tr:hover {
+.markdown-content tr:hover,
+.article-body tr:hover {
     background: var(--brand-light);
 }
 
 /* ===== Horizontal Rule ===== */
-.markdown-content hr {
+.markdown-content hr,
+.article-body hr {
     border: none;
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--border), transparent);
@@ -325,35 +495,43 @@ body {
 }
 
 /* ===== Definition Lists ===== */
-.markdown-content dl {
+.markdown-content dl,
+.article-body dl {
     margin: 1.5em 0;
 }
 
-.markdown-content dt {
+.markdown-content dt,
+.article-body dt {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 600;
     color: var(--ink);
     margin-top: 1em;
 }
 
-.markdown-content dd {
+.markdown-content dd,
+.article-body dd {
     margin-left: 1.5em;
     color: var(--ink-light);
 }
 
 /* ===== Task Lists ===== */
 .markdown-content ul.task-list,
-.markdown-content ul:has(input[type="checkbox"]) {
+.markdown-content ul:has(input[type="checkbox"]),
+.article-body ul.task-list,
+.article-body ul:has(input[type="checkbox"]) {
     list-style: none;
     padding-left: 0;
 }
 
 .markdown-content ul.task-list li::before,
-.markdown-content ul:has(input[type="checkbox"]) li::before {
+.markdown-content ul:has(input[type="checkbox"]) li::before,
+.article-body ul.task-list li::before,
+.article-body ul:has(input[type="checkbox"]) li::before {
     display: none;
 }
 
-.markdown-content input[type="checkbox"] {
+.markdown-content input[type="checkbox"],
+.article-body input[type="checkbox"] {
     appearance: none;
     width: 18px;
     height: 18px;
@@ -365,12 +543,14 @@ body {
     cursor: pointer;
 }
 
-.markdown-content input[type="checkbox"]:checked {
+.markdown-content input[type="checkbox"]:checked,
+.article-body input[type="checkbox"]:checked {
     background: var(--brand);
     border-color: var(--brand);
 }
 
-.markdown-content input[type="checkbox"]:checked::after {
+.markdown-content input[type="checkbox"]:checked::after,
+.article-body input[type="checkbox"]:checked::after {
     content: '✓';
     position: absolute;
     color: #fff;
@@ -384,35 +564,44 @@ body {
 .markdown-content .note,
 .markdown-content .tip,
 .markdown-content .warning,
-.markdown-content .info {
+.markdown-content .info,
+.article-body .note,
+.article-body .tip,
+.article-body .warning,
+.article-body .info {
     padding: 1em 1.25em;
     border-radius: 12px;
     margin: 1.5em 0;
     font-size: 0.95em;
 }
 
-.markdown-content .note {
+.markdown-content .note,
+.article-body .note {
     background: #fef3c7;
     border-left: 4px solid var(--warning);
 }
 
-.markdown-content .tip {
+.markdown-content .tip,
+.article-body .tip {
     background: #d1fae5;
     border-left: 4px solid var(--success);
 }
 
-.markdown-content .warning {
+.markdown-content .warning,
+.article-body .warning {
     background: #fee2e2;
     border-left: 4px solid #ef4444;
 }
 
-.markdown-content .info {
+.markdown-content .info,
+.article-body .info {
     background: #dbeafe;
     border-left: 4px solid var(--info);
 }
 
 /* ===== Keyboard Keys ===== */
-.markdown-content kbd {
+.markdown-content kbd,
+.article-body kbd {
     display: inline-block;
     padding: 4px 8px;
     font-family: 'Inter', system-ui, sans-serif;
@@ -425,7 +614,8 @@ body {
 }
 
 /* ===== Abbr ===== */
-.markdown-content abbr[title] {
+.markdown-content abbr[title],
+.article-body abbr[title] {
     text-decoration: underline dotted;
     cursor: help;
 }
