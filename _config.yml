@@ -14,9 +14,6 @@ kramdown:
     block:
       line_numbers: true
 
-# Theme settings
-permalink: /:title/
-
 # Defaults
 defaults:
   - scope:
