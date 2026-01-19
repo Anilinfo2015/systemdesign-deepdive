@@ -17,11 +17,6 @@ kramdown:
 # Theme settings
 permalink: /:title/
 
-# Plugins
-plugins:
-  - jekyll-sitemap
-  - jekyll-feed
-
 # Defaults
 defaults:
   - scope:
