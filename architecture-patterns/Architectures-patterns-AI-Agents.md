@@ -467,16 +467,12 @@ graph TD
 
 All eight patterns instantiate variations of a useful control loop. In practice, most coordinated systems implement some version of this cycle (explicitly or implicitly):
 
-```
-1. SENSE: Perceive input or observe results
-   ↓
-2. PLAN: Reason about what to do next
-   ↓
-3. ACT: Execute through other agents or tools
-   ↓
-4. LEARN: Observe results, update memory
-   ↓
-5. [Loop back to SENSE]
+```mermaid
+flowchart TD
+     S["1. SENSE: Perceive input or observe results"] --> P["2. PLAN: Reason about what to do next"]
+     P --> A["3. ACT: Execute through other agents or tools"]
+     A --> L["4. LEARN: Observe results, update memory"]
+     L --> S
 ```
 
 This cycle is universal, not specific to AI agents:
