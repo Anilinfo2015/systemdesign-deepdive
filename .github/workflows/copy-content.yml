@@ -1,0 +1,69 @@
+name: Copy Content from Personal Notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_folder:
+        description: 'Source folder path in the personal-notes repository'
+        required: true
+        type: string
+      target_folder:
+        description: 'Target folder path in this repository'
+        required: true
+        type: string
+
+jobs:
+  copy-content:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - name: Checkout personal-notes repository
+        uses: actions/checkout@v4
+        with:
+          repository: Anilinfo2015/personal-notes
+          token: ${{ secrets.PAT_TOKEN }}
+          path: personal-notes-temp
+
+      - name: Copy content from source to target
+        run: |
+          SOURCE_PATH="personal-notes-temp/${{ inputs.source_folder }}"
+          TARGET_PATH="${{ inputs.target_folder }}"
+          
+          # Check if source folder exists
+          if [ ! -d "$SOURCE_PATH" ]; then
+            echo "Error: Source folder '$SOURCE_PATH' does not exist"
+            exit 1
+          fi
+          
+          # Create target directory if it doesn't exist
+          mkdir -p "$TARGET_PATH"
+          
+          # Copy contents from source to target (using /. to include hidden files and handle empty dirs)
+          cp -r "$SOURCE_PATH"/. "$TARGET_PATH"/
+          
+          echo "Successfully copied content from '$SOURCE_PATH' to '$TARGET_PATH'"
+
+      - name: Clean up temporary folder
+        run: rm -rf personal-notes-temp
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add .
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Copy content from personal-notes/${{ inputs.source_folder }} to ${{ inputs.target_folder }}"
+            git push
+            echo "Changes committed and pushed successfully"
+          fi
