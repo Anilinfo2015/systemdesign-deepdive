@@ -33,7 +33,9 @@ jobs:
       - name: Copy content from source to target
         run: |
           SOURCE_PATH="personal-notes-temp/${{ inputs.source_folder }}"
+          # Remove leading slashes to ensure path is relative to repository
           TARGET_PATH="${{ inputs.target_folder }}"
+          TARGET_PATH="${TARGET_PATH#/}"
           
           # Check if source folder exists
           if [ ! -d "$SOURCE_PATH" ]; then
