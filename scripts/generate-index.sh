@@ -175,10 +175,6 @@ get_file_info() {
     local excerpt=$(get_md_excerpt "$file")
     local read_time=$(get_read_time "$file")
     
-    if [ "$dir" = "." ]; then
-        dir="."
-    fi
-    
     echo "$rel_path|$title|$date|$dir|$excerpt|$read_time"
 }
 
