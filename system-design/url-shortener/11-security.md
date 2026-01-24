@@ -1,528 +1,76 @@
-# Article 11: Security
+# Article 12: Security & Abuse Prevention
 
-## Security Layers
+## The Dark Side of URL Shorteners
 
-```
-        User
-          ↓
-    ┌─────────────┐
-    │ HTTPS/TLS   │ - Encryption in transit
-    └─────┬───────┘
-          ↓
-    ┌─────────────────┐
-    │ Authentication  │ - Who are you?
-    └────────┬────────┘
-             ↓
-    ┌──────────────────┐
-    │ Authorization    │ - What can you do?
-    └────────┬─────────┘
-             ↓
-    ┌────────────────────┐
-    │ Input Validation   │ - Is this safe?
-    └────────┬───────────┘
-             ↓
-    ┌───────────────────┐
-    │ Rate Limiting     │ - Abuse prevention
-    └────────┬──────────┘
-             ↓
-       Database
-```
+Building the system is half the battle. Protecting it is the other half.
+URL Shorteners are a favorite tool for attackers. Why?
+*   **Phishing**: `short.app/login` looks safer than `attacker.com/steal-creds`.
+*   **Malware**: `short.app/update` hides `virus.exe`.
+*   **Spam**: Sending 100k SMS messages with a short link is cheap.
+
+If we don't handle this, our domain will be blacklisted by Gmail, Outlook, and Twitter within a week.
 
 ---
 
-## Layer 1: Encryption in Transit (HTTPS/TLS)
+## 1. Malicious Content Detection
 
-### Requirement
+We cannot blindly redirect users. We are responsible for where we send them.
 
-```
-ALL traffic must be HTTPS
-  ├─ No HTTP allowed
-  ├─ No unencrypted connections
-  └─ Upgrade HTTP to HTTPS automatically
-```
+### Step 1: Sync Filtering (The "No-Fly List")
+Before creating a link, we check the domain against a local blacklist.
+*   `baddomain.com` -> **403 Forbidden**.
+*   `virus-site.net` -> **403 Forbidden**.
 
-### Implementation
+### Step 2: Async Scanning (Google Safe Browsing)
+We can't scan every URL in real-time (it adds 500ms latency).
+Instead, we use our **Async Architecture** (from Article 9).
+1.  **User Create**: Return 201 OK immediately.
+2.  **Worker**: Pick up the URL.
+3.  **Scan**: API call to *Google Safe Browsing* or *VirusTotal*.
+4.  **Action**: If malicious, ban the link (mark `is_active=false`).
 
-```
-API Server:
-  ├─ Bind to :443 (HTTPS)
-  ├─ Bind to :80 (HTTP only for redirect)
-  ├─ All :80 requests → 301 to https://
-
-SSL/TLS Certificate:
-  ├─ Let's Encrypt (free, automated renewal)
-  ├─ Wildcard cert: *.short.app
-  ├─ Auto-renewal: 90 days before expiry
-  └─ Monitoring: Alert if < 30 days to expiry
-
-TLS 1.2 minimum:
-  ├─ TLS 1.0, 1.1: deprecated (remove)
-  ├─ TLS 1.2: standard
-  ├─ TLS 1.3: preferred (faster handshake)
-  └─ Disable weak ciphers (SSL Labs A rating)
-```
-
-### Verification
-
-```
-Test with curl:
-  curl -v https://short.app/abc123
-  
-Look for:
-  ├─ TLS 1.2 or 1.3
-  ├─ Certificate valid
-  ├─ No warnings
-  └─ Chain complete (root, intermediate, server)
-```
+**The Lag**: There is a 2-second window where the link is live. This is an acceptable trade-off for performance.
 
 ---
 
-## Layer 2: Authentication
+## 2. Iteration Attacks (Enumeration)
 
-### Web Users (OAuth 2.0)
+**The Attack**: A competitor writes a script to request `/aaaa`, `/aaab`, `/aaac`... effectively scraping our entire database.
+They can find private links, analyze our growth, or clone our data.
 
-```
-Flow:
-  1. User clicks "Sign In"
-  2. Redirect to: https://auth.short.app/oauth/authorize
-  3. User logs in with email/password
-  4. Redirect back to: https://short.app?code=abc123
-  5. Server exchanges code for access_token
-  6. Set secure, httpOnly cookie
+### Defense 1: High Entropy
+We chose Base62, but if we use a counter (1, 2, 3...), the IDs are predictable.
+This is why **Snowflake IDs** or **Randomized Hashing** (Article 7) are superior. Calculating the "Next ID" from `aZb9` is much harder than `1001`.
 
-Cookie configuration:
-  Set-Cookie: session_id=xyz; 
-              Path=/; 
-              Domain=.short.app;
-              Secure;     ← HTTPS only
-              HttpOnly;   ← No JavaScript access
-              SameSite=Strict;  ← CSRF protection
-              Max-Age=86400  ← 24 hours
-```
-
-### API Users (Bearer Token)
-
-```
-Request:
-  Authorization: Bearer sk_live_abc123xyz
-
-Token format:
-  ├─ sk_live_* : Production token
-  ├─ sk_test_* : Testing token (doesn't charge)
-  └─ Random 32 chars for security
-
-Storage:
-  ├─ Hash token in database (bcrypt)
-  ├─ Never store plaintext
-  ├─ Generate new token: use crypto.random_bytes(32)
-  └─ Display to user only once (copy to clipboard)
-
-Rotation:
-  ├─ Users can revoke old tokens
-  ├─ System warns if token is old (> 1 year)
-  ├─ Webhook notification on rotation
-  └─ Old tokens still work (don't break immediately)
-```
-
-### Multi-Factor Authentication (MFA)
-
-```
-For sensitive operations:
-  ├─ Change password: Require MFA
-  ├─ Rotate API key: Require MFA
-  ├─ Delete links: Require MFA
-  └─ Upgrade plan: Require MFA
-
-Implementation:
-  ├─ TOTP (Time-based One-Time Password)
-  ├─ User scans QR code with authenticator app
-  ├─ App generates 6-digit code every 30 seconds
-  ├─ User enters code during sensitive operation
-  └─ Backup codes for recovery (store offline)
-```
+### Defense 2: Honey Pots
+We inject "fake" short codes into the potential ID space. If an IP hits 10 non-existent links in 1 minute, they are scanning. **Ban the IP.**
 
 ---
 
-## Layer 3: Authorization
+## 3. Rate Limiting (Abuse)
 
-### Role-Based Access Control (RBAC)
+We need multiple layers of Rate Limiting (Token Buckets).
 
-```
-User Roles:
-  ├─ User (default)
-  │  └─ Can manage own links
-  │  └─ Can't see other users' links
-  │
-  ├─ Admin
-  │  └─ Can delete any link
-  │  └─ Can view analytics dashboard
-  │  └─ Can manage users (ban, promote)
-  │
-  └─ Support
-     └─ Can override rate limits
-     └─ Can view user account
-     └─ Can help with issues
-```
+| Layer | Limit | Purpose |
+| :--- | :--- | :--- |
+| **IP Address** | 100 Creates / hour | Stop Spam Bots. |
+| **User Account** | 10,000 Creates / day | Stop Account Takeovers. |
+| **Global** | 10,000 Redirs / sec | Stop DDoS hitting the origin. |
 
-### Resource-Level Authorization
-
-```python
-def get_link_details(short_code, current_user):
-    """Check authorization before returning link"""
-    
-    link = db.get_link(short_code)
-    if not link:
-        return 404
-    
-    # Check authorization
-    if current_user.role == 'admin':
-        return link  # Admins see everything
-    
-    if current_user.id == link.user_id:
-        return link  # Users see their own links
-    
-    # Regular user trying to access other user's link
-    return 403  # Forbidden
-```
+**The 429 Strategy**: When a limit is hit, return HTTP 429. Do not burn CPU cycles rendering a "Sorry" page. Just drop the connection or send the header.
 
 ---
 
-## Layer 4: Input Validation
+## 4. The 302 Redirect Trap
 
-### URL Validation
-
-```python
-def validate_url(url):
-    """Comprehensive URL validation"""
-    
-    # 1. Format check
-    try:
-        parsed = urllib.parse.urlparse(url)
-    except:
-        raise ValidationError("Invalid URL format")
-    
-    # 2. Scheme check (only http/https)
-    if parsed.scheme not in ['http', 'https']:
-        raise ValidationError("Only HTTP/HTTPS allowed")
-    
-    # 3. Length check
-    if len(url) > 2048:
-        raise ValidationError("URL too long")
-    
-    # 4. Hostname check
-    if not parsed.netloc:
-        raise ValidationError("URL must have a hostname")
-    
-    # 5. Block internal IPs (SSRF prevention)
-    ip = socket.gethostbyname(parsed.netloc)
-    if ip.startswith('192.168.') or ip.startswith('10.'):
-        raise ValidationError("Private IP not allowed")
-    
-    # 6. Block localhost
-    if parsed.netloc in ['localhost', '127.0.0.1', '::1']:
-        raise ValidationError("Localhost not allowed")
-    
-    return parsed
-```
-
-### SQL Injection Prevention
-
-```python
-# ❌ VULNERABLE
-query = f"SELECT * FROM links WHERE short_code = '{code}'"
-db.execute(query)  # If code="abc' OR '1'='1", extracts all links!
-
-# ✅ SAFE (Parameterized queries)
-query = "SELECT * FROM links WHERE short_code = ?"
-db.execute(query, [code])  # Database driver escapes code
-
-# Note: All ORMs (SQLAlchemy, Django ORM) use parameterized queries
-# Use raw SQL only if absolutely necessary
-```
-
-### Custom Code Validation
-
-```python
-def validate_custom_code(code):
-    """Prevent reserved/dangerous codes"""
-    
-    # Length
-    if len(code) < 1 or len(code) > 100:
-        raise ValidationError("Code length must be 1-100")
-    
-    # Characters (alphanumeric + dash + underscore)
-    if not re.match(r'^[a-zA-Z0-9_-]+$', code):
-        raise ValidationError("Code can only contain letters, numbers, - and _")
-    
-    # Reserved words
-    reserved = ['api', 'admin', 'support', 'www', 'mail', 'ftp', 'blog']
-    if code.lower() in reserved:
-        raise ValidationError(f"Code '{code}' is reserved")
-    
-    # Profanity filter
-    if contains_profanity(code):
-        raise ValidationError("Code contains inappropriate language")
-    
-    return code
-```
+**The Vulnerability**: Open Redirects.
+If we allow parameters like `short.app/login?redirect=evil.com`, we are vulnerable.
+In our design, strict validation of the `long_url` is mandatory.
+We only redirect to the URL stored in the DB, never to a URL passed in the query string.
 
 ---
 
-## Layer 5: Malware & Phishing Detection
-
-### Google Safe Browsing API
-
-```python
-def check_url_safety(long_url):
-    """Query Google Safe Browsing API"""
-    
-    response = requests.post(
-        "https://safebrowsing.googleapis.com/v4/threatMatches:find",
-        json={
-            "client": {
-                "clientId": "my-shortener",
-                "clientVersion": "1.5.2"
-            },
-            "threatInfo": {
-                "threatTypes": [
-                    "MALWARE",
-                    "SOCIAL_ENGINEERING",
-                    "UNWANTED_SOFTWARE"
-                ],
-                "platformTypes": ["WINDOWS", "LINUX", "ANDROID"],
-                "threatEntryTypes": ["URL"],
-                "threatEntries": [{"url": long_url}]
-            }
-        },
-        params={"key": GOOGLE_API_KEY}
-    )
-    
-    threats = response.json().get("matches", [])
-    
-    if threats:
-        threat_types = set(t['threatType'] for t in threats)
-        return False, threat_types  # Blocked
-    
-    return True, []  # Safe
-```
-
-### Handling Unsafe URLs
-
-```python
-def create_link(long_url):
-    """Create link with safety check"""
-    
-    is_safe, threat_types = check_url_safety(long_url)
-    
-    if not is_safe:
-        # Log for investigation
-        logger.warn(f"Blocked unsafe URL: {long_url}, threats: {threat_types}")
-        
-        # Return error to user
-        return 403, {
-            "error": "URL blocked",
-            "reason": "URL contains malware/phishing",
-            "support_email": "support@short.app"
-        }
-    
-    # Continue with normal link creation
-    return create_link_impl(long_url)
-```
-
----
-
-## Layer 6: Rate Limiting & DDoS Prevention
-
-### Per-User Rate Limiting
-
-```python
-def rate_limit_check(user_id, tier):
-    """Enforce rate limits per subscription tier"""
-    
-    quotas = {
-        "free": 100,      # 100 per day
-        "premium": 10000, # 10K per day
-        "enterprise": None  # Unlimited
-    }
-    
-    capacity = quotas[tier]
-    if capacity is None:
-        return True  # Unlimited
-    
-    # Use token bucket (Redis)
-    bucket = TokenBucket(f"quota:{user_id}", capacity, capacity/(24*3600))
-    
-    if not bucket.allow_request():
-        return False  # Rate limit exceeded
-    
-    return True
-```
-
-### Per-IP Rate Limiting (DDoS Protection)
-
-```python
-def rate_limit_by_ip(client_ip):
-    """Prevent DDoS from single IP"""
-    
-    bucket = TokenBucket(f"ip:{client_ip}", capacity=1000, refill_rate=1000/60)
-    
-    if not bucket.allow_request():
-        # IP is abusing
-        return 429  # Too Many Requests
-    
-    return None  # OK
-```
-
-### WAF Rules (AWS WAF)
-
-```
-Rules:
-  1. Block IPs sending > 100 requests/second
-  2. Block requests with suspicious User-Agent
-  3. Block requests with SQL injection patterns
-  4. Block requests with path traversal (../)
-  5. Rate limit by IP: 5000 per 5 minutes
-  6. Block known bad IPs (reputation lists)
-```
-
----
-
-## Layer 7: Audit Logging
-
-### What to Log
-
-```python
-def log_security_event(event_type, details):
-    """Log security-relevant events"""
-    
-    event = {
-        "type": event_type,
-        "user_id": details.get('user_id'),
-        "ip": details.get('ip'),
-        "user_agent": details.get('user_agent'),
-        "action": details.get('action'),
-        "resource": details.get('resource'),
-        "result": details.get('result'),  # success/failure
-        "timestamp": datetime.utcnow(),
-        "details": details
-    }
-    
-    # Store in immutable audit log
-    audit_log.insert(event)
-
-# Examples:
-log_security_event('login_attempt', {
-    'user_id': 'user123',
-    'ip': '203.0.113.45',
-    'result': 'success'
-})
-
-log_security_event('unauthorized_access', {
-    'user_id': 'user123',
-    'ip': '203.0.113.45',
-    'resource': 'other_user_link',
-    'result': 'blocked'
-})
-
-log_security_event('rate_limit_exceeded', {
-    'ip': '203.0.113.45',
-    'rate_limit': 100,
-    'result': 'rejected'
-})
-```
-
-### Retention
-
-```
-Audit logs retention:
-  ├─ Keep all logs for 2 years (compliance)
-  ├─ Immutable (can't be modified/deleted)
-  ├─ Encrypted at rest
-  ├─ Access controlled (admins only)
-  └─ Backed up separately
-```
-
----
-
-## Layer 8: Data Protection
-
-### Encryption at Rest
-
-```
-Database:
-  ├─ DynamoDB: Enabled by default
-  ├─ RDS: Use AWS KMS (Key Management Service)
-  └─ S3: Bucket encryption enabled
-
-PII (Personally Identifiable Information):
-  ├─ Email: Encrypt with customer-managed key
-  ├─ Password: Hash with bcrypt, salt
-  ├─ API key: Hash with SHA256
-  └─ Note: Don't store passwords! Use OAuth/SSO
-```
-
-### Password Security
-
-```python
-import bcrypt
-
-def hash_password(password):
-    """Hash password securely"""
-    
-    # Never store plaintext
-    # Use bcrypt with cost factor 12+
-    salt = bcrypt.gensalt(rounds=12)
-    hashed = bcrypt.hashpw(password.encode(), salt)
-    return hashed
-
-def verify_password(password, hashed):
-    """Verify during login"""
-    return bcrypt.checkpw(password.encode(), hashed)
-
-# Requirements:
-#  ├─ Min 12 characters
-#  ├─ Mix of upper/lower/digits/symbols
-#  ├─ Not in breach database (check haveibeenpwned.com)
-#  └─ No reuse of last 5 passwords
-```
-
----
-
-## Security Checklist
-
-```
-Before production:
-  ☑ HTTPS enabled, TLS 1.2+
-  ☑ Authentication implemented (OAuth 2.0)
-  ☑ Authorization checks in place
-  ☑ Input validation on all endpoints
-  ☑ SQL injection prevention (parameterized queries)
-  ☑ Malware detection (Safe Browsing API)
-  ☑ Rate limiting enforced
-  ☑ Audit logging enabled
-  ☑ Password hashing (bcrypt)
-  ☑ Secrets not in code (use env vars)
-  ☑ CORS properly configured
-  ☑ CSRF tokens for POST requests
-  ☑ Security headers (CSP, X-Frame-Options, etc.)
-  ☑ Dependency vulnerabilities scanned
-  ☑ Secrets scanning in Git
-```
-
----
-
-## Summary: Security
-
-**8 layers of defense**:
-1. **HTTPS/TLS**: Encryption in transit
-2. **Authentication**: Who are you?
-3. **Authorization**: What can you access?
-4. **Input Validation**: Is this safe?
-5. **Malware Detection**: Check URLs
-6. **Rate Limiting**: Prevent abuse
-7. **Audit Logging**: Track activities
-8. **Data Protection**: Encrypt at rest
-
-Each layer catches different attacks. Combine them for defense-in-depth.
-
-**Next**: Production Readiness (monitoring, reliability, operations).
+## Summary
+Security in a URL shortener isn't just about SSL (which is mandatory). It's about **Reputation Management**.
+If we allow 1% of links to be malware, valid users will stop clicking.
+By implementing Async Scanning and Rate Limiting, we protect both our infrastructure and our users.

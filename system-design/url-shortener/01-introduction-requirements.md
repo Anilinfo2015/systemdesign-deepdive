@@ -1,5 +1,3 @@
-# Article 1: Introduction & Requirements
-
 ## Introduction: What is a URL Shortener?
 
 A URL shortener is a service that converts long URLs into short aliases and redirects users when they click the alias.
@@ -21,20 +19,7 @@ URL shorteners are ubiquitous (Bitly, TinyURL, goo.gl) but the engineering is no
 3. **Extreme latency sensitivity**: Users expect instant redirects (<100ms)
 4. **Diverse trade-offs**: Cost vs. consistency vs. reliability
 
-### What This Guide Covers
-
-This series walks through the complete system design journey:
-
-- **Part 1-2**: Core concepts (requirements, entities, API)
-- **Part 3-4**: Minimal viable system (basic design, tradeoffs)
-- **Part 5-6**: Production scaling (3 alternative approaches)
-- **Part 7-8**: Operational excellence (patterns, security, monitoring)
-
----
-
 ## Functional Requirements
-
-### Core Operations (MVP)
 
 **R1: Create Short Link**
 ```
@@ -65,8 +50,6 @@ Example: DELETE /links/abc123 → returns 204 No Content
 Users see all their created links
 Example: GET /my-links → returns list with pagination
 ```
-
----
 
 ## Non-Functional Requirements
 
@@ -147,57 +130,6 @@ Recovery Point Objective (RPO):
   └─ Acceptable because links can be recreated
 ```
 
----
-
-## Non-Functional Requirements: Other Concerns
-
-### Security
-
-```
-Encryption:
-  ├─ HTTPS required (all communications)
-  ├─ Database encryption at rest
-  └─ Sensitive data masked in logs
-
-Authentication:
-  ├─ API key for programmatic access
-  ├─ OAuth 2.0 for web users
-  └─ Multi-factor auth for accounts
-
-Authorization:
-  ├─ Users can only delete their own links
-  ├─ Admins can delete any link
-  └─ Rate limiting to prevent abuse
-```
-
-### Cost Efficiency
-
-```
-Target: < $500/month for MVP
-  ├─ Database: $50-100/month
-  ├─ Cache: $100-200/month
-  ├─ CDN: $50-100/month
-  └─ Compute: $150-250/month
-
-(After scale, cost should be <$0.0001 per redirect)
-```
-
-### Compliance
-
-```
-Data Privacy:
-  ├─ GDPR: Users can request data export/deletion
-  ├─ CCPA: Disclose data collection
-  └─ Cookie consent: For analytics tracking
-
-Content Safety:
-  ├─ Check URLs against malware/phishing databases
-  ├─ Prevent creation of shortened links to known-bad URLs
-  └─ Quarantine suspicious links
-```
-
----
-
 ## Requirements Summary Table
 
 | Requirement | Details | Notes |
@@ -214,7 +146,6 @@ Content Safety:
 | **Security** | HTTPS, auth, rate limiting | Malware detection, content scanning |
 | **Cost** | < $500/month MVP | < $0.0001 per redirect at scale |
 
----
 
 ## What We're NOT Building
 
@@ -231,14 +162,3 @@ Out of scope:
 
 These are premium features, can be added post-MVP
 ```
-
----
-
-## Next Steps
-
-Now that we understand requirements, next article covers:
-- Core entities (URLs, Users, Links)
-- Entity relationships
-- Data model with ER diagram
-
-**Key insight**: The requirements tell us what to build. The scale metrics tell us how to build it.

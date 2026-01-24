@@ -1,303 +1,176 @@
-# Article 4: Basic System Design (MVP)
+# Article 4: The Core Engine (Minimal Viable Product)
 
-## Minimal Viable Product (MVP)
+## Building the Foundation
 
-The MVP satisfies all functional requirements without worrying about scale.
+Before we worry about handling a billion users, we must ensure our system works correctly for just one. This article focuses on the "First Principles" of our design: correctness, data integrity, and solving the fundamental logical challenges of URL shortening.
 
-**MVP Constraints**:
-- Single data center (us-east-1)
-- Synchronous processing (everything waits)
-- No caching
-- Small database (< 10M URLs)
-- Modest traffic (< 100 RPS)
-
----
-
-## MVP Architecture
-
-### ASCII Diagram
-```
-┌────────────────┐
-│ Load Balancer  │
-│  (HAProxy)     │
-└────────┬───────┘
-         │
-    ┌────┴─────────────┐
-    │  API Servers     │
-    │  ├─ Instance 1   │
-    │  ├─ Instance 2   │
-    │  └─ Instance 3   │
-    └────┬─────────────┘
-         │
-    ┌────▼───────────┐
-    │  PostgreSQL    │
-    │  Single Region │
-    │  Replicated    │
-    └────────────────┘
-```
-
-### Mermaid Architecture Diagram
-```mermaid
-graph TD
-    User["👤 User Browser"]
-    DNS["Route 53<br/>DNS"]
-    LB["Load Balancer<br/>HAProxy<br/>Port: 80/443"]
-    API1["API Server 1<br/>Node.js<br/>t3.medium"]
-    API2["API Server 2<br/>Node.js<br/>t3.medium"]
-    API3["API Server 3<br/>Node.js<br/>t3.medium"]
-    
-    Primary["PostgreSQL<br/>Primary<br/>Master"]
-    Replica["PostgreSQL<br/>Replica<br/>Slave"]
-    
-    User -->|short.app| DNS
-    DNS -->|IP:80| LB
-    LB -->|Round Robin| API1
-    LB -->|Round Robin| API2
-    LB -->|Round Robin| API3
-    
-    API1 -->|Read/Write| Primary
-    API2 -->|Read/Write| Primary
-    API3 -->|Read/Write| Primary
-    
-    Primary -->|Async Replication| Replica
-    
-    style DNS fill:#FF9900
-    style LB fill:#146EB4
-    style API1 fill:#FF9900
-    style API2 fill:#FF9900
-    style API3 fill:#FF9900
-    style Primary fill:#527FFF
-    style Replica fill:#527FFF
-```
-
-**Technology Stack**:
-- **Compute**: Node.js/Python API servers
-- **Database**: PostgreSQL with master-slave replication
-- **Load Balancer**: HAProxy or Nginx
-- **DNS**: Route 53 (simple failover)
+Our goal is a **Minimum Viable Product (MVP)** that:
+1.  Generates truly unique short codes key.
+2.  Redirection works reliably.
+3.  Analytics are counted accurately.
+4.  Data is never corrupted by race conditions.
 
 ---
 
-## MVP Database Schema
+## 1. The Critical Challenge: Generating Unique Short Codes
+
+The heart of a URL shortener is the algorithm that turns a long URL into a short, unique string (e.g., `abc1234`). If two different URLs get the same short code, we have a "Collision," and one user's link will redirect to the wrong place. This is catastrophic.
+
+We have two main strategies to solve this.
+
+### Strategy A: Random String Generation (The "Try & Check" Method)
+This is intuitive: just roll the dice.
+1.  Generate a random 6-character string from `[a-z, A-Z, 0-9]`.
+2.  Check the database: "Does this code exist?"
+3.  If **No**: Insert it.
+4.  If **Yes** (Collision): Generate a new one and retry.
+
+*   **Pros**: Unpredictable URLs (good for security, competitors can't guess your volume).
+*   **Cons**: As the database fills up, collisions become frequent, leading to multiple retries and slower performance.
+
+### Strategy B: Base62 Conversion (The "Counter" Method)
+This is the mathematical approach. We treat the database ID as a number and convert it to Base62.
+*   **Base62 Alphabet**: `0-9` (10) + `a-z` (26) + `A-Z` (26) = 62 characters.
+*   **Mechanism**:
+    *   Database ID `1` -> Code `1`
+    *   Database ID `100` -> Code `1C`
+    *   Database ID `1,000,000` -> Code `4c92`
+    *   Database ID `10,000,000,000` -> Code `aUKYO`
+
+*   **Pros**: **Zero collisions guaranteed**. Every number maps to exactly one string. It is extremely fast.
+*   **Cons**: Predictable. If a user sees `code: 1C` and next is `code: 1D`, they know you only have small traffic.
+
+### The Verdict for MVP
+We will use **Strategy B (Base62)** because it eliminates the need for complex collision handling and retries. To fix the "predictability" issue, we can simply start our Database Auto-Increment ID at a large number (e.g., 1,000,000,000) so all codes look like "random" 6-character strings (`15FTGg`).
+
+---
+
+## 2. Solving Concurrency (The Race Condition)
+
+What happens if two users try to claim the custom alias `summer-sale` at the exact same millisecond?
+
+**The "Check-Then-Act" Trap**
+A naive implementation might look like this:
+```javascript
+// DON'T DO THIS
+if ( db.find(code: 'summer-sale') == null ) {
+   // It's free! I'll take it.
+   // <--- Race Condition happens here! another thread might insert right now
+   db.insert(code: 'summer-sale')
+}
+```
+If two requests run the `check` at the same time, both will see "null", and both will try to insert. One will overwrite the other, or you'll have duplicate data.
+
+**The Solution: Database Constraints**
+We rely on the database to be the referee. We define the schema with a `UNIQUE` constraint.
 
 ```sql
--- Users table
-CREATE TABLE users (
-  user_id UUID PRIMARY KEY,
-  username VARCHAR(100) UNIQUE NOT NULL,
-  email VARCHAR(100) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  tier VARCHAR(20) DEFAULT 'free',
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- Links table (main entity)
 CREATE TABLE links (
-  short_code VARCHAR(10) PRIMARY KEY,
-  long_url TEXT NOT NULL,
-  user_id UUID NOT NULL REFERENCES users(user_id),
-  created_at TIMESTAMP DEFAULT NOW(),
-  is_custom BOOLEAN DEFAULT FALSE,
-  is_deleted BOOLEAN DEFAULT FALSE,
-  expires_at TIMESTAMP,
-  title VARCHAR(255)
+    short_code VARCHAR(10) PRIMARY KEY,
+    -- other fields...
+);
+```
+
+Now, we just try to insert.
+1.  Thread A inserts `summer-sale`. **Success**.
+2.  Thread B inserts `summer-sale`. **DB Error: Unique Violation (409 Conflict)**.
+
+We catch the error in our code and return a polite "Sorry, taken" message to User B. This is ACID compliance in action.
+
+---
+
+## 3. The MVP Architecture
+
+For our MVP, a simple, monolithic approach is best. It minimizes operational complexity ("moving parts").
+
+```mermaid
+graph TD
+    User["👤 User"]
+    LB["Load Balancer (Nginx)"]
+    App["API Server (Node.js)"]
+    DB[(PostgreSQL)]
+
+    User -->|HTTPS| LB
+    LB -->|Round Robin| App
+    App -->|SQL Queries| DB
+```
+
+*   **Load Balancer**: Distributes traffic across servers.
+*   **API Server**: Stateless Node.js server. Validates inputs and runs the logic.
+*   **PostgreSQL**: Single "Source of Truth". Handles data storage and enforces uniqueness.
+
+---
+
+## 4. Detailed Data Flows
+
+### Flow 1: Creating a Link (Write)
+1.  **Receive**: `POST /links` with `long_url`.
+2.  **Idempotency Check**: Hash the `long_url` (MD5). Query DB: "Do we have a link with this hash for this User?".
+    *   *Why?* prevents users from creating 100 copies of the same link.
+3.  **Generate ID**:
+    *   Insert a new row into database to get a unique `id` (e.g., 1005).
+    *   Convert `1005` to Base62 -> `g7`.
+    *   Update the row with `short_code = 'g7'`.
+    *   *Optimization*: Use a PL/SQL function to do this in one step, or use a pre-generated ID service (discussed in later articles).
+4.  **Respond**: Return `short.app/g7`.
+
+### Flow 2: Redirection (Read)
+1.  **Receive**: `GET /g7`.
+2.  **Lookup**: `SELECT long_url FROM links WHERE short_code = 'g7'`.
+3.  **Validate**:
+    *   Is it found? If no -> 404.
+    *   Is `is_deleted` true? If yes -> 404 (or 410 Gone).
+    *   Is `expires_at` passed? If yes -> 404.
+4.  **Record Analytics (Synchronous)**:
+    *   `UPDATE analytics SET clicks = clicks + 1 WHERE code = 'g7'`.
+    *   *Note*: This makes the redirect slower (User waits for the write). We accept this for MVP simplicity.
+5.  **Redirect**: Return HTTP 301 to `long_url`.
+
+---
+
+## 5. MVP Schema Design
+
+```sql
+-- 1. Users: Standard account info
+CREATE TABLE users (
+    user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    tier VARCHAR(50) DEFAULT 'free' -- limits usage
 );
 
--- Indexes for common queries
-CREATE INDEX idx_links_user_id ON links(user_id);
-CREATE INDEX idx_links_created_at ON links(created_at);
-CREATE INDEX idx_links_long_url_hash ON links(MD5(long_url));
-  -- For duplicate detection
-
--- Analytics table (daily summary)
-CREATE TABLE daily_analytics (
-  short_code VARCHAR(10) NOT NULL REFERENCES links(short_code),
-  date DATE NOT NULL,
-  clicks INTEGER DEFAULT 0,
-  unique_users INTEGER DEFAULT 0,
-  PRIMARY KEY (short_code, date)
+-- 2. Links: The core mapping
+CREATE TABLE links (
+    id BIGSERIAL PRIMARY KEY, -- Auto-incrementing ID for Base62
+    short_code VARCHAR(10) UNIQUE, -- The public alias
+    long_url TEXT NOT NULL,
+    long_url_hash CHAR(32), -- Index this for fast duplicate checks
+    user_id UUID REFERENCES users(user_id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT TRUE
 );
 
-CREATE INDEX idx_analytics_date ON daily_analytics(date);
+-- Index for the "Hot Path" (Redirects)
+CREATE INDEX idx_short_code ON links(short_code);
+
+-- Index for the "Write Path" (Duplication Check)
+CREATE INDEX idx_long_url_hash ON links(long_url_hash);
 ```
 
 ---
 
-## MVP Request Flows
+## Summary: What we have built
+We have a robust system that guarantees:
+*   **Uniqueness**: Via Base62 + Database IDs.
+*   **Integrity**: Via Database Constraints.
+*   **Simplicity**: Easy to debug and deploy.
 
-### Create Link Flow
+**The Problem?**
+It doesn't scale.
+1.  **The Analytics Bottleneck**: Every click requires a database *write*. At 1000 clicks/sec, our database will lock up.
+2.  **The ID Bottleneck**: We depend on a single database counter for IDs.
+3.  **Latency**: Users in Asia hitting a variety in US-East will be slow.
 
-```
-User submits long URL
-    ↓
-1. Validate URL
-   ├─ Check format (http/https)
-   ├─ Check length (< 2048 chars)
-   ├─ Check not malware (Safe Browsing API)
-   └─ If invalid: return 400 Bad Request
-
-2. Check for duplicate
-   ├─ SELECT short_code FROM links 
-      WHERE MD5(long_url) = MD5($long_url)
-   └─ If found: return existing short_code (idempotent!)
-
-3. Generate short code
-   ├─ If custom: check if available
-   │  └─ If taken: return 409 Conflict
-   │  └─ If available: use it
-   ├─ If random: generate random 6-char base62
-   │  └─ Loop: SELECT COUNT(*) FROM links 
-   │          WHERE short_code = $code
-   │  └─ Retry if collision (very rare)
-
-4. Insert into database
-   ├─ INSERT INTO links (short_code, long_url, user_id, ...)
-   │  VALUES ($code, $url, $user_id, ...)
-   └─ Latency: 10-50ms (network + write)
-
-5. Return response
-   └─ 201 Created with short_url
-```
-
-**Total latency**: 50-200ms (mostly database write)
-
-### Redirect Flow
-
-```
-User clicks short.app/{code}
-    ↓
-1. Query database
-   ├─ SELECT long_url FROM links 
-      WHERE short_code = $code AND is_deleted = FALSE
-   └─ Latency: 10-30ms (network + read)
-
-2. Return redirect
-   ├─ HTTP 301 Location: $long_url
-   └─ Cache-Control: public, max-age=31536000
-
-3. Log analytics (synchronous in MVP)
-   ├─ UPDATE daily_analytics 
-      SET clicks = clicks + 1 
-      WHERE short_code = $code AND date = TODAY()
-   └─ Latency: 10-50ms
-```
-
-**Problem in MVP**: Logging blocks user! Total latency: 30-100ms, but 2 database round trips.
-
----
-
-## MVP Data Flows Diagram
-
-```
-Create Link Request
-    ↓
-API Server
-  ├─ Validate URL (Safe Browsing API)
-  ├─ Check duplicate (DB query)
-  ├─ Generate code (algorithm)
-  ├─ Insert into DB (write)
-  └─ Return 201 Created
-
-Redirect Request
-    ↓
-API Server
-  ├─ Query database (read)
-  ├─ Check is_deleted flag
-  ├─ Synchronously update analytics (write)
-  └─ Return 301 Redirect
-```
-
----
-
-## MVP Trade-offs / Limitations
-
-### Problem 1: Database as Bottleneck
-
-```
-PostgreSQL single master capacity: ~1,000 read-heavy RPS
-Our need: 100 RPS (with room to grow)
-
-Satisfied? Yes ✓
-But: What happens at 600 RPS?
-  └─ Queries start timing out
-  └─ Users get 500 errors
-  └─ Cascading failure
-```
-
-### Problem 2: Synchronous Analytics Kills Latency
-
-```
-Redirect flow without analytics:
-  Query DB: 20ms
-  Return: 5ms
-  Total: 25ms ✓
-
-Redirect flow with analytics:
-  Query DB: 20ms
-  Update analytics: 50ms
-  Return: 5ms
-  Total: 75ms ⚠️
-```
-
-**Why?**
-- Analytics writes add latency to critical path
-- User doesn't care about analytics, only about redirect speed
-
-### Problem 3: No Resilience to Failures
-
-```
-If PostgreSQL goes down:
-  ├─ All requests fail immediately
-  ├─ No fallback mechanism
-  ├─ All users see "Service Unavailable"
-  └─ Total downtime: minutes to hours
-```
-
-### Problem 4: Single Region Vulnerability
-
-```
-If AWS us-east-1 region fails:
-  ├─ All data inaccessible
-  ├─ No replicas in other regions
-  ├─ Manual failover required
-  └─ RTO: hours (not acceptable for 99.9% SLA)
-```
-
-### Problem 5: Collision on Custom Codes
-
-```
-Race condition:
-  Thread 1: SELECT count FROM links WHERE code='abc123'
-            → 0 (code available)
-            [100ms delay...]
-  Thread 2: SELECT count FROM links WHERE code='abc123'
-            → 0 (code available)
-            Thread 2 inserts first!
-  Thread 1: INSERT → UNIQUE constraint violation!
-
-Solution: Database transaction or atomic insert
-  But adds latency + complexity
-```
-
----
-
-## Scaling MVP (When to Evolve)
-
-```
-Traffic Growth: What breaks when?
-
-At 50 RPS: MVP works fine
-At 100 RPS: Database reads are slow (50% CPU)
-At 200 RPS: Database at capacity, timeouts
-At 300+ RPS: Persistent failures, users abandon
-
-Action: Need caching layer!
-```
-
----
-
-## Summary: MVP Design
+In the next part, we will break these bottlenecks.
 
 **Architecture**:
 - 3 API servers (load balanced)

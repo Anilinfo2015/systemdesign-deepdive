@@ -1,6 +1,14 @@
-# Article 2: Core Entities & Components
+# Article 2: Core Entities & Architecture
 
-## Entity Relationships Diagram
+## The Data Foundation
+
+A great system design starts with a solid data model. If we get the entities right, the logic tends to follow naturally. If we get them wrong, we'll spend forever fighting our own database schema.
+
+Our URL shortener is relatively simple in terms of relationships, but the scale demands precision. We need to store billions of links while keeping the "hot" path—the redirect—incredibly lightweight.
+
+### Entity Relationships Diagram
+
+This diagram visualizes how our data fits together. Notice that `LINKS` are the central hub, connecting users who create them to the click events they generate.
 
 ```mermaid
 erDiagram
@@ -10,335 +18,106 @@ erDiagram
     LINKS ||--o{ CLICK_EVENTS : generates
     
     USERS {
-        string user_id PK
-        string email UK
-        string password_hash
-        string tier
-        timestamp created_at
+        string user_id PK "Unique identifier"
+        string email UK "Login email"
+        string password_hash "Securely hashed password"
+        string tier "Subscription level (Free/Pro)"
+        timestamp created_at "Account creation date"
     }
     
     LINKS {
-        string short_code PK
-        string long_url
-        string user_id FK
-        boolean is_custom
-        boolean is_deleted
-        timestamp created_at
+        string short_code PK "The 7-char alias (e.g., abc1234)"
+        string long_url "Original destination URL"
+        string user_id FK "Owner of the link"
+        boolean is_custom "Was this alias chosen by user?"
+        boolean is_deleted "Soft-delete flag"
+        timestamp created_at "Creation timestamp"
     }
     
     API_KEYS {
-        string api_key_id PK
-        string user_id FK
-        string key_hash UK
-        timestamp created_at
+        string api_key_id PK "Key identifier"
+        string user_id FK "Owner of the key"
+        string key_hash UK "Hashed API token"
+        timestamp created_at "Creation timestamp"
     }
     
     ANALYTICS {
-        string short_code FK
-        date date
-        integer click_count
-        integer unique_users
+        string short_code FK "Link being tracked"
+        date date "Usage date"
+        integer click_count "Daily clicks"
+        integer unique_users "Distinct visitors"
     }
     
     CLICK_EVENTS {
-        string event_id PK
-        string short_code FK
-        timestamp click_time
-        string ip_address
+        string event_id PK "Unique event ID"
+        string short_code FK "Link clicked"
+        timestamp click_time "Exact time of click"
+        string ip_address "Visitor IP (for uniqueness)"
     }
 ```
 
 ---
 
-## Core Entities
+## 1. Deep Dive: Core Entities
 
-A URL shortener needs just a few core entities:
+Let's break down the three most critical data structures in our system.
 
-### Entity 1: Links (URLs)
+### Entity 1: Links (The Crown Jewels)
+This is the heart of our system. The `short_code` is our primary key because it's what we look up 99% of the time.
+*   **Design Choice**: We use `is_deleted` (soft delete) instead of actually removing rows. This prevents a deleted short code from being immediately reused by another user (which could cause security confusion) and allows for data recovery.
+*   **Scale**: We expect billions of rows here.
 
-The primary entity - maps short codes to long URLs.
-
-```
+```text
 Links Table:
-  ├─ short_code (String, Primary Key, immutable)
-  │  └─ e.g., "abc123"
-  ├─ long_url (String, up to 2048 chars)
-  │  └─ e.g., "https://blog.example.com/..."
-  ├─ user_id (String, Foreign Key to Users)
-  │  └─ Who created this link
-  ├─ created_at (Timestamp, immutable)
-  │  └─ When was link created
-  ├─ is_custom (Boolean)
-  │  └─ true if user chose code, false if random
-  ├─ is_deleted (Boolean, soft delete)
-  │  └─ true if user deleted
-  ├─ expires_at (Timestamp, optional)
-  │  └─ When link auto-deletes
-  └─ title (String, optional)
-     └─ User's description of link
+  ├─ short_code (PK): "abc1234" (7 chars, Base62)
+  ├─ long_url: "https://very-long-site.com/..."
+  ├─ user_id (FK): Link owner
+  ├─ created_at: Immutable timestamp
+  ├─ is_custom: Boolean flag
+  └─ is_deleted: Boolean flag
 ```
 
-**Uniqueness**: 
-- `short_code` is globally unique (only one long URL per code)
-- `long_url` is NOT unique (same URL can have multiple codes via hashing)
+### Entity 2: Users (The Owners)
+Users are standard account entities. We separate `API_KEYS` into their own table to allow users to rotate keys without losing their account history or links.
+*   **Tier**: Crucial for rate limiting. A "free" user might get 10 links/hour, while "enterprise" gets 10,000.
 
-### Entity 2: Users
-
-Accounts that own links.
-
-```
-Users Table:
-  ├─ user_id (String, Primary Key)
-  │  └─ e.g., "user@example.com" or UUID
-  ├─ username (String, unique)
-  │  └─ Display name
-  ├─ email (String, unique)
-  │  └─ Contact + login
-  ├─ password_hash (String, hashed)
-  │  └─ Never store plain passwords
-  ├─ tier (String, enum)
-  │  └─ "free", "premium", "enterprise"
-  ├─ subscription_expires_at (Timestamp)
-  │  └─ When does premium expire?
-  ├─ api_key (String, unique, hashed)
-  │  └─ For programmatic access
-  ├─ created_at (Timestamp)
-  │  └─ Account creation time
-  └─ last_login (Timestamp)
-     └─ Last activity
-```
-
-### Entity 3: Analytics (Optional but Recommended)
-
-Track redirect statistics for insights and billing.
-
-```
-Analytics (Daily Aggregate):
-  ├─ short_code (String, Foreign Key)
-  │  └─ Which link was clicked
-  ├─ date (Date)
-  │  └─ YYYY-MM-DD
-  ├─ click_count (Integer)
-  │  └─ How many times clicked that day
-  ├─ unique_users (Integer)
-  │  └─ How many different IPs/users
-  ├─ referrer_stats (Map/JSON)
-  │  └─ Where clicks came from
-  └─ device_stats (Map/JSON)
-     └─ Desktop vs mobile breakdown
-```
-
-**Why daily aggregate?**
-- Raw events (500M per day) would be expensive to store
-- Aggregated daily summaries (1B URLs × 365 days = 365M rows) is manageable
-- Trade-off: Can't get granular minute-level stats, but don't need them for MVP
+### Entity 3: Analytics (The Value Add)
+How do we store statistics for 500 million DAILY redirects?
+*   **The Trap**: Storing every single click as a row in a relational database will kill it.
+*   **The Solution**: We capture raw clicks in an event stream (like Kafka) and aggregate them into daily summaries. The `ANALYTICS` table above represents this *aggregated view* (e.g., "Link A got 50 clicks on Jan 1st"), which is much smaller and faster to query for dashboards.
 
 ---
 
-## Entity Relationships
+## 2. High-Level Architecture
 
-```
-┌─────────────────┐
-│     Users       │
-├─────────────────┤
-│ user_id (PK)    │
-│ username        │
-│ email           │
-│ tier            │
-└────────┬────────┘
-         │
-         │ 1:N (User creates many links)
-         │
-┌────────▼────────┐         ┌──────────────────┐
-│     Links       │◄────────┤   Analytics      │
-├─────────────────┤         ├──────────────────┤
-│ short_code (PK) │         │ short_code (FK)  │
-│ long_url        │         │ date (PK)        │
-│ user_id (FK)    │         │ click_count      │
-│ created_at      │         │ unique_users     │
-│ is_custom       │         └──────────────────┘
-│ is_deleted      │
-│ expires_at      │
-└─────────────────┘
-```
+Now let's zoom out. How do the servers, databases, and caches talk to each other?
 
-**Relationships Explained**:
+### Component Interactions
+The diagram below shows the lifecycle of a request.
+1.  **Traffic Entry**: All requests hit the **Load Balancer** first.
+2.  **Logic**: The **API Servers** (stateless) handle the business logic.
+3.  **Speed**: They check the **Cache (Redis)** immediately for redirects.
+4.  **Truth**: If the cache misses, they check the **Database**.
+5.  **Insights**: Analytics are sent asynchronously to a **Message Queue** so they don't slow down the redirect.
 
-1. **Users → Links** (1:N)
-   - One user can create many links
-   - One link belongs to exactly one user
-
-2. **Links → Analytics** (1:N)
-   - One link can have many daily analytics records
-   - One analytics record is for exactly one link
-
----
-
-## Core Components (System-Level)
-
-These are the building blocks we'll need:
-
-### Component 1: API Server
-```
-Responsibility:
-  ├─ Handle HTTP requests
-  ├─ Validate input
-  ├─ Coordinate with cache + database
-  └─ Return responses
-
-Technology: Node.js, Go, or Python
-Deployed: Containerized, load balanced
-```
-
-### Component 2: Database
-```
-Responsibility:
-  ├─ Persist link mappings
-  ├─ Store user accounts
-  ├─ Maintain relationships
-  └─ Ensure ACID properties
-
-Technology: PostgreSQL (SQL) or DynamoDB (NoSQL)
-Deployed: Single region (MVP), multi-region (scale)
-```
-
-### Component 3: Cache Layer
-```
-Responsibility:
-  ├─ Cache hot URLs (most-clicked)
-  ├─ Reduce database load
-  ├─ Improve latency
-  └─ Handle traffic spikes
-
-Technology: Redis, Memcached
-Deployed: In-process or distributed
-```
-
-### Component 4: Load Balancer
-```
-Responsibility:
-  ├─ Distribute traffic to API servers
-  ├─ Health check servers
-  ├─ Route to closest region
-  └─ Retry on failure
-
-Technology: HAProxy, Nginx, AWS ELB
-Deployed: At entry point
-```
-
-### Component 5: Message Queue (Optional)
-```
-Responsibility:
-  ├─ Queue analytics events
-  ├─ Decouple redirect from analytics
-  ├─ Buffer traffic spikes
-  └─ Enable batch processing
-
-Technology: Kafka, RabbitMQ, SQS
-Deployed: Between API and analytics
-```
-
----
-
-## Data Flow: Core Paths
-
-### Path 1: Create Link (Write)
-
-```
-User Request
-    │
-    ├─ Validate URL (format, length, safety)
-    │
-    ├─ Check for duplicate (idempotency)
-    │   └─ Query database: "Does this URL already have a code?"
-    │   └─ If yes: Return existing code (don't create duplicate)
-    │
-    ├─ Generate short code (or use custom)
-    │   └─ Random: generate random base62 code
-    │   └─ Custom: validate not taken
-    │
-    ├─ Insert into database
-    │   └─ DynamoDB: one write operation
-    │   └─ Latency: 10-50ms
-    │
-    ├─ Cache result
-    │   └─ Redis: one set operation
-    │   └─ Latency: 1-5ms
-    │
-    └─ Return short_url to user
-       └─ Total latency: 50-200ms
-```
-
-### Path 2: Redirect (Read)
-
-```
-User Clicks Link (short.app/abc123)
-    │
-    ├─ Check local cache (in-process)
-    │   └─ Latency: <1ms
-    │   └─ If found: go to "Return Redirect"
-    │
-    ├─ Check distributed cache (Redis)
-    │   └─ Latency: 1-5ms
-    │   └─ If found: cache locally + return
-    │
-    ├─ Query database (fallback)
-    │   └─ Latency: 50-100ms
-    │   └─ If found: cache + return
-    │
-    ├─ Log analytics (async, don't wait)
-    │   └─ Queue event to message queue
-    │   └─ Fire-and-forget (user doesn't wait)
-    │
-    └─ Return Redirect
-       └─ HTTP 301 response + Location header
-       └─ Total latency: 1-100ms (depending on cache hit)
-```
-
-### Path 3: Delete Link (Write)
-
-```
-User Requests DELETE /links/abc123
-    │
-    ├─ Verify ownership
-    │   └─ Check: is user_id owner of abc123?
-    │   └─ If no: return 403 Forbidden
-    │
-    ├─ Soft delete from database
-    │   └─ Set is_deleted = true
-    │   └─ Keep data for audits
-    │
-    ├─ Invalidate caches
-    │   └─ Delete from local cache
-    │   └─ Delete from Redis
-    │
-    └─ Return 204 No Content
-       └─ Total latency: 50-200ms
-```
-
----
-
-## Component Interactions Diagram
-
-```
+```text
 ┌──────────────────┐
 │  Users/Browser   │
 └────────┬─────────┘
          │
-         │ HTTP request
+         │ 1. HTTP Request (GET short.app/abc)
          │
     ┌────▼──────────┐
-    │ Load Balancer │ ◄────── Health checks
-    │ (Route 53)    │
+    │ Load Balancer │ ◄────── Health checks (Is server alive?)
+    │ (Nginx / ALB) │
     └────┬──────────┘
          │
     ┌────┴───────────────────────┐
-    │   API Servers (N instances) │
-    │   ├─ Server 1               │
-    │   ├─ Server 2               │
-    │   └─ Server N               │
+    │   API Servers (Stateless)   │
+    │   (Horizontally Scaled)     │
     └────┬──────────┬──────────┬──┘
          │          │          │
+         │ 2. Read  │ 3. Miss? │ 4. Async Log
     ┌────▼──┐  ┌───▼────┐  ┌──▼────────┐
     │ Cache │  │Database│  │Msg Queue  │
     │ Redis │  │ Postgres   │ (Kafka)   │
@@ -346,29 +125,71 @@ User Requests DELETE /links/abc123
                                  │
                             ┌────▼────────┐
                             │ Analytics   │
-                            │ (TimescaleDB)
+                            │ Worker      │
                             └─────────────┘
 ```
 
 ---
 
-## Summary: Entities & Components
+## 3. Data Flow: The Life of a Request
 
-**3 Core Entities**:
-1. **Links**: short_code → long_url mapping (immutable, global)
-2. **Users**: Account data (tier, API key, subscription)
-3. **Analytics**: Daily aggregates (clicks, referrers, devices)
+To truly understand the system, we must follow the path of data.
 
-**5 Core Components**:
-1. **API Server**: Handle HTTP, coordinate logic
-2. **Database**: Persistent storage (PostgreSQL for MVP)
-3. **Cache**: Hot data (Redis for latency)
-4. **Load Balancer**: Route traffic
-5. **Message Queue**: Async analytics (optional for MVP)
+### Path 1: Creating a Link (The Write Path)
+This path is slower but consistent. We cannot afford to lose data here.
+1.  **Validation**: Is the URL valid? Is it malicious?
+2.  **Deduplication**: Has this user already shortened this link?
+3.  **Generation**: create a unique 7-character string.
+4.  **Storage**: Save to DB first (source of truth), *then* cache it.
 
-**Data Flows**:
-- **Create**: Validate → Deduplicate → Generate code → Store → Cache
-- **Redirect**: Local cache → Redis → DB → Async log → Return
-- **Delete**: Verify ownership → Soft delete → Invalidate caches
+```text
+User Request
+    │
+    ├─ 1. Validate: Check URL format & safety blacklists
+    │
+    ├─ 2. Deduplicate: (Optional) Check if exact link exists for user
+    │
+    ├─ 3. Generate:
+    │   └─ Random: Generate unique Base62 ID
+    │   └─ Custom: Verify "my-alias" is not taken
+    │
+    ├─ 4. Persist (DB): Write to primary database (Master)
+    │
+    ├─ 5. Cache (Redis): Add to cache for immediate read availability
+    │
+    └─ 6. Respond: Return { "short_url": "..." }
+```
 
-**Next Article**: API design (endpoints, request/response schemas, error handling).
+### Path 2: The Redirect (The Read Path)
+This is the "Hot Path". It must be blazing fast (<100ms).
+1.  **Cache First**: We check RAM (Redis) first. 90%+ of traffic should stop here.
+2.  **Database Fallback**: Only if the cache is empty do we hit the disk (DB).
+3.  **Fire-and-Forget**: We log the analytics event *after* sending the response (or asynchronously) so the user doesn't wait for us to count the click.
+
+```text
+User Clicks Link
+    │
+    ├─ 1. Cache Lookup (Redis):
+    │   └─ HIT: Return URL immediately (Speed: < 5ms)
+    │   └─ MISS: Continue to DB
+    │
+    ├─ 2. Database Lookup (Postgres):
+    │   └─ Fetch URL and populate Cache for next time
+    │   └─ (Speed: 10-50ms)
+    │
+    ├─ 3. Async Analytics:
+    │   └─ Send "Click Event" to Kafka queue (Don't wait for confirmation)
+    │
+    └─ 4. HTTP 301 Redirect: Use "Location" header
+```
+
+---
+
+## Summary
+
+We have designed a system that separates concerns:
+*   **Entities** focus on correctness and relationships.
+*   **Architecture** focuses on speed (Caching) and reliability (Queues).
+*   **Data Flows** ensure that "Writes" are safe and "Reads" are fast.
+
+In the next article, we will get into the nitty-gritty of the **API Design**, strictly defining exactly how the outside world talks to these components.
