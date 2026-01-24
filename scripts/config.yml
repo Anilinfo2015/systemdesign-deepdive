@@ -11,19 +11,22 @@
 # Featured article - The main hero article at the top of the page
 # Only the first entry is used (single featured article)
 featured:
-  - architecture-patterns/microservices.md
+  - architecture-patterns/sharding/sharding-core-concept-part1-foundation.md
 
 # Editor's Picks - Up to 3 articles shown in the Editor's Picks section
 # These appear after the featured article
 editors_picks:
-  - scalability/horizontal-scaling.md
-  - design-patterns/caching.md
-  - architecture-patterns/event-driven.md
+  - architecture-patterns/Architectures-patterns-AI-Agents.md
+  - system-design/Design-Tag-Management-Service/01-requirements-and-domain.md
+  - system-design/Design-Tag-Management-Service/02-basic-system-design.md
+  - system-design/Design-Tag-Management-Service/03-deep-dive-scaling.md
+  - system-design/Design-URL-Shortener/01-introduction-requirements.md
+  - system-design/Design-URL-Shortener/02-core-entities-components.md
 
 # Recommended Content - Up to 4 articles shown in the Recommended section
 # These are marked as "Essential" reads
 recommended:
-  - architecture-patterns/microservices.md
-  - design-patterns/caching.md
-  - scalability/horizontal-scaling.md
-  - design-patterns/load-balancing.md
+  - system-design/design-youtube/01-foundations.md
+  - system-design/Design-Web-Crawler/01-foundations.md
+  - system-design/Design-Web-Crawler/02-scale-analysis.md
+  - system-design/Design-Web-Crawler/03-deep-dive-approach-a.md
