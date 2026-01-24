@@ -467,7 +467,7 @@ body {
 /* JSON specific highlighting */
 .highlight .language-json .k { color: #005cc5; } /* JSON keys */
 .highlight .language-json .s2 { color: #032f62; } /* JSON strings */
-.highlight .highlight .language-json .mi { color: #005cc5; } /* JSON numbers */
+.highlight .language-json .mi { color: #005cc5; } /* JSON numbers */
 .highlight .language-json .kc { color: #d73a49; } /* JSON booleans/null */
 
 /* ===== Mermaid Diagrams ===== */
